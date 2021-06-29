@@ -1,26 +1,38 @@
-﻿using System.Collections;
+using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
+using KModkit;
+using Random = UnityEngine.Random;
 
-public class PatternLockModule : MonoBehaviour {
-    // Use this for initialization
+public class PatternLockModule : MonoBehaviour
+{
     public KMSelectable[] buttons;
     public KMSelectable clear;
     public KMSelectable submit;
     public GameObject linesObj;
+	
     ConnectingLine[] lines;
     int lastPressed = -1;
+	
     public Solution correctSolution;
     public Material redMaterial;
     public Material greenMaterial;
     public Material blueMaterial;
     public List<List<Solution>> solutions;
+	
     Connection greenBlueLocs;
+	
     public static int[,] rotatedSquares;
     public static int[] corners;
-	void Start () {
+	
+	void Start ()
+	{
         Init();
 	}
+	
     void Init()
     {
         rotatedSquares = new int[,] { { 1, 2, 3, 4, 5, 6, 7, 8, 9 }, { 3, 6, 9, 2, 5, 8, 1, 4, 7 }, { 9, 8, 7, 6, 5, 4, 3, 2, 1 },  { 7, 4, 1, 8, 5, 2, 9, 6, 3 } };
@@ -57,6 +69,7 @@ public class PatternLockModule : MonoBehaviour {
         correctSolution = solutions[greenBlueLocs.from - 2][greenBlueLocs.to - 2];
         correctSolution.Rotate(redCorner);
     }
+	
 	public void OnButtonPress(int index)
     {
         index++;
@@ -71,6 +84,7 @@ public class PatternLockModule : MonoBehaviour {
             lastPressed = index;
         }
     }
+	
     public void ClearBoard()
     {
         GetComponent<KMAudio>().PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
@@ -81,6 +95,7 @@ public class PatternLockModule : MonoBehaviour {
         }
         lastPressed = -1;
     }
+	
     public bool ConnectPlaces(int from, int to)
     {
         for(int i = 0; i < lines.Length; i++)
@@ -94,6 +109,7 @@ public class PatternLockModule : MonoBehaviour {
         }
         return from == -1;
     }
+	
     public Solution GetSolution()
     {
         List<Connection> connections = new List<Connection>();
@@ -106,6 +122,7 @@ public class PatternLockModule : MonoBehaviour {
         }
         return new Solution(connections);
     }
+	
     public void CheckSolution()
     {
         GetComponent<KMAudio>().PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
@@ -121,6 +138,7 @@ public class PatternLockModule : MonoBehaviour {
             ClearBoard();
         }
     }
+	
     List<List<Solution>> GenerateSolutions()
     {
         return new List<List<Solution>>()
@@ -646,13 +664,52 @@ public class PatternLockModule : MonoBehaviour {
             }
         };
     }
-	// Update is called once per frame
-	void Update () {
+
+	//twitch plays
+    #pragma warning disable 414
+    private readonly string TwitchHelpMessage = @"To create a connection in the lock, use the command !{0} connect [sequence of numbers] (The sequence of numbers must be 1 character) | To submit the connection, use the command !{0} submit | To clear the connection, use the command !{0} clear";
+    #pragma warning restore 414
+	
+	string[] ValidNumbers = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+	
+	IEnumerator ProcessTwitchCommand(string command)
+	{
+		string[] parameters = command.Split(' ');
+		if (Regex.IsMatch(parameters[0], @"^\s*connect\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+		{
+			yield return null;
+			if (parameters.Length > 2 || parameters.Length < 2)
+			{
+				yield return "sendtochaterror Parameter length is invalid.";
+				yield break;
+			}
+			
+			foreach (char c in parameters[1])
+			{
+				if (!c.ToString().EqualsAny(ValidNumbers))
+				{
+					yield return "sendtochaterror Current character in the sequence is not a number. The command was stopped.";
+					yield break;
+				}
+				buttons[Int32.Parse(c.ToString())-1].OnInteract();
+				yield return new WaitForSeconds(0.1f);
+			}
+		}
 		
+		if (Regex.IsMatch(command, @"^\s*clear\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+		{
+			yield return null;
+			clear.OnInteract();
+		}
+		
+		if (Regex.IsMatch(command, @"^\s*submit\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+		{
+			yield return null;
+			submit.OnInteract();
+		}
 	}
-    
 }
-public class Connection {
+	public class Connection {
     public int from;
     public int to;
     public Connection(int from, int to)
@@ -680,6 +737,7 @@ public class Connection {
         return new Connection(PatternLockModule.rotatedSquares[index, from-1], PatternLockModule.rotatedSquares[index, to-1]);
     }
 }
+	
 public class Solution
 {
     private List<Connection> connections;
@@ -687,10 +745,12 @@ public class Solution
     {
         connections = conn;
     }
+	
     public List<Connection> getConnections()
     {
         return connections;
     }
+	
     public bool hasConnection(Connection con)
     {
         for(int i = 0; i < connections.Count; i++)
@@ -702,6 +762,7 @@ public class Solution
         }
         return false;
     }
+	
     public bool matches(Solution other)
     {
         List<Connection> oc = other.getConnections();
@@ -718,6 +779,7 @@ public class Solution
         }
         return true;
     }
+	
     public void Rotate(int squareOne)
     {
         for(int i = 0; i < connections.Count; i++)
